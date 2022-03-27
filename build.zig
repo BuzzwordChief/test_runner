@@ -14,6 +14,10 @@ pub fn build(b: *std.build.Builder) void {
     const exe = b.addExecutable("test_runner", "src/main.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
+
+    // Add Packages
+    exe.addPackage(.{ .name = "toml", .path = .{ .path = "lib/zig-toml/src/toml.zig" } });
+
     exe.install();
 
     const run_cmd = exe.run();

@@ -19,3 +19,8 @@ pub fn ewrite(comptime fmt: []const u8, args: anytype) void {
 pub fn ewriteln(comptime fmt: []const u8, args: anytype) void {
     ewrite(fmt ++ "\n", args);
 }
+
+pub fn ewriteHint(comptime fmt: []const u8, err: anytype, args: anytype) void {
+    ewriteln(fmt, args);
+    ewriteln("  Hint: {s}", .{@errorName(err)});
+}

@@ -1,5 +1,5 @@
 # This is the general configuration.
-path = "./example_program"
+path = "./example_program" # Relative to this file
 continue_on_fail = true
 
 [Test_1]
