@@ -1,0 +1,16 @@
+# This is the general configuration.
+path = "./example_program"
+continue_on_fail = true
+
+[Test_1]
+input      = "-some -program -arguments"
+output     = "the actual output of the program"
+output_err = "some_error_output"
+exit_code  = 123
+
+[Test_2]
+input      = "ARG2"
+output     = "OUT2"
+output_err = "OUT_ERR2"
+exit_code  = 222
+
