@@ -93,14 +93,14 @@ fn toml_to_suite(table: *toml.Table) !Test_Suite {
                     return error.Missing_Required_Key;
                 };
 
-                const required_field_type = switch (field.field_type) {
+                const required_field_type = comptime switch (field.field_type) {
                     string => toml.Value.String,
                     i64 => toml.Value.Integer,
                     else => @compileError("Implement!"),
                 };
 
                 if (required_field_type != field_value) {
-                    common.ewriteln("Expected " ++ @typeName(field.field_type) ++ " for '" ++ field.name ++ "' on {s} got {s}", .{ raw_test.name, @tagName(field_value) });
+                    common.ewriteln("Expected " ++ @tagName(required_field_type) ++ " for '" ++ field.name ++ "' on {s} got {s}", .{ raw_test.name, @tagName(field_value) });
                     return error.Wrong_Value_Type;
                 }
 
