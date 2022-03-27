@@ -22,7 +22,7 @@ const Test_Suite = struct {
     continue_on_fail: bool = false,
     tests: Tests_List,
 
-    pub fn init(_allocator: std.mem.Allocator, path: []const u8) !Self {
+    pub fn init(_allocator: std.mem.Allocator, path: string) !Self {
         return Self{
             .path = path,
             .tests = Tests_List.init(_allocator),
@@ -139,9 +139,63 @@ fn run_suite(suite: *Test_Suite) !void {
         }
 
         // @todo(may): actually run the program and test outputs/exit_code
-
+        try run_test(suite.path, t);
         common.writeln("OK", .{});
     }
+}
+
+pub const FILE = opaque {};
+pub extern "c" fn popen(command: [*:0]const u8, mode: [*:0]const u8) ?*FILE;
+pub extern "c" fn pclose(f: ?*FILE) c_int;
+
+fn run_test(path: string, t: Test) !void {
+    _ = path;
+    _ = t;
+
+    var cmd = try allocator.allocSentinel(u8, path.len + t.input.len + 1, 0);
+    defer allocator.free(cmd);
+
+    std.mem.copy(u8, cmd, path);
+    cmd[path.len] = ' ';
+    std.mem.copy(u8, cmd[path.len + 1 ..], t.input);
+
+    var proc = popen(cmd, "r");
+    if (proc == null) {
+        return error.Unable_To_Spawn_Process;
+    }
+
+    var output: []u8 = try allocator.alloc(u8, 58);
+    var used: usize = 0;
+    var read = true;
+    while (read) {
+        var read_bytes = std.c.fread(output.ptr + used, @sizeOf(u8), output.len - used, @ptrCast(*std.c.FILE, proc));
+        defer used += read_bytes;
+
+        if (read_bytes + used == output.len) {
+            output = try allocator.realloc(output, output.len * 2);
+        } else {
+            read = false;
+        }
+    }
+
+    var exit_code: i32 = pclose(proc);
+    if (exit_code == -1) {
+        return error.Unable_To_Close_Executable;
+    }
+
+    // pclose returns the exit code shifted 1 Byte to the left...
+    exit_code >>= 8;
+
+    // JUST FOR DEBUGGING
+    common.ewriteln("", .{});
+    common.ewriteln("--------------------------------------", .{});
+
+    common.ewriteln("output     = {s}", .{output[0..used]});
+    common.ewriteln("read_bytes = {}", .{used});
+    common.ewriteln("exit_code  = {}", .{exit_code});
+
+    common.ewriteln("--------------------------------------", .{});
+    common.ewriteln("", .{});
 }
 
 pub fn main() void {

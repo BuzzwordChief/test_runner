@@ -11,5 +11,5 @@ int main(int argc, char** argv) {
 
     fprintf(stderr, "error_output");
 
-    return 123;
+    return 69;
 }
