@@ -22,7 +22,7 @@ const Test_Suite = struct {
     continue_on_fail: bool = false,
     tests: Tests_List,
 
-    pub fn init(_allocator: std.mem.Allocator, path: string) !Self {
+    pub fn init(_allocator: std.mem.Allocator, path: []const u8) !Self {
         return Self{
             .path = path,
             .tests = Tests_List.init(_allocator),
@@ -114,6 +114,36 @@ fn toml_to_suite(table: *toml.Table) !Test_Suite {
     return res;
 }
 
+/// Calculates the absolute path of the executable relative to the
+/// directory of the tests.toml file. Returns if the path of the
+/// executable is already absolute.
+fn fix_exe_path(suite: *Test_Suite, config_path: string) !void {
+    if (std.fs.path.isAbsolute(suite.path)) {
+        return;
+    }
+
+    var dir = std.fs.path.dirname(config_path) orelse &[_]u8{};
+    var joined = try std.fs.path.join(allocator, &.{ dir, suite.path });
+    defer allocator.free(joined);
+    suite.path = try std.fs.realpathAlloc(allocator, joined);
+}
+
+fn run_suite(suite: *Test_Suite) !void {
+    _ = suite;
+
+    for (suite.tests.items) |t| {
+        common.write("{s}", .{t.name});
+        var i: usize = 0;
+        while (i < (70 - t.name.len)) : (i += 1) {
+            common.write(".", .{});
+        }
+
+        // @todo(may): actually run the program and test outputs/exit_code
+
+        common.writeln("OK", .{});
+    }
+}
+
 pub fn main() void {
     // defer arena.deinit();
     const args = std.process.argsAlloc(allocator) catch unreachable;
@@ -147,11 +177,13 @@ pub fn main() void {
     var suite = toml_to_suite(table) catch return;
     // defer suite.deinit();
 
-    // Get the absolute path to the executable of the suite relative
-    // to the tests.toml file
-    @compileLog("TODO");
+    fix_exe_path(&suite, args[1]) catch |err| {
+        common.ewriteHint("Invalid executable path provided.", err, .{});
+        return;
+    };
 
     common.writeln("Running Tests [{s}]", .{args[1]});
-    common.writeln("{}", .{suite});
-    //common.writeln("", .{});
+    run_suite(&suite) catch |err| {
+        common.ewriteHint("Error while running tests.", err, .{});
+    };
 }
