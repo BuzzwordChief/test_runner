@@ -145,53 +145,65 @@ fn run_suite(suite: *Test_Suite) !void {
 }
 
 pub const FILE = opaque {};
-pub extern "c" fn popen(command: [*:0]const u8, mode: [*:0]const u8) ?*FILE;
-pub extern "c" fn pclose(f: ?*FILE) c_int;
+pub extern "c" fn mkfifo(path: [*:0]const u8, mode: c_int) c_int;
+pub extern "c" fn run(path: [*:0]const u8, program_args: [*][*:0]const u8, arg_count: u32, stdout_fh: c_int, stderr_fh: c_int) c_int;
 
 fn run_test(path: string, t: Test) !void {
-    _ = path;
-    _ = t;
+    const stdout_path = "/tmp/test_runner_stdout";
+    const stderr_path = "/tmp/test_runner_stderr";
 
-    var cmd = try allocator.allocSentinel(u8, path.len + t.input.len + 1, 0);
+    // Assemble the cmd
+    var cmd = try allocator.allocSentinel(u8, (path.len), 0);
     defer allocator.free(cmd);
-
     std.mem.copy(u8, cmd, path);
-    cmd[path.len] = ' ';
-    std.mem.copy(u8, cmd[path.len + 1 ..], t.input);
 
-    var proc = popen(cmd, "r");
-    if (proc == null) {
-        return error.Unable_To_Spawn_Process;
+    // Assemble arguments
+    var start: usize = 0;
+    var args = std.ArrayList([*:0]u8).init(allocator);
+    defer {
+        // Destroy? We should call free but [*:u8] can't be freed
+        // it must be [:u8]...
+        for (args.items) |e| allocator.destroy(e);
+        args.deinit();
     }
-
-    var output: []u8 = try allocator.alloc(u8, 58);
-    var used: usize = 0;
-    var read = true;
-    while (read) {
-        var read_bytes = std.c.fread(output.ptr + used, @sizeOf(u8), output.len - used, @ptrCast(*std.c.FILE, proc));
-        defer used += read_bytes;
-
-        if (read_bytes + used == output.len) {
-            output = try allocator.realloc(output, output.len * 2);
-        } else {
-            read = false;
+    for (t.input) |c, i| {
+        if (c == ' ') {
+            if (start != i) {
+                var arg = try allocator.allocSentinel(u8, i - start, 0);
+                std.mem.copy(u8, arg, t.input[start..i]);
+                try args.append(arg);
+            }
+            start = i + 1;
+        } else if (i == (t.input.len - 1)) {
+            var arg = try allocator.allocSentinel(u8, i + 1 - start, 0);
+            std.mem.copy(u8, arg, t.input[start..(i + 1)]);
+            try args.append(arg);
         }
     }
 
-    var exit_code: i32 = pclose(proc);
-    if (exit_code == -1) {
-        return error.Unable_To_Close_Executable;
-    }
+    // create tmp files
+    std.fs.cwd().deleteFile(stdout_path) catch {};
+    std.fs.cwd().deleteFile(stderr_path) catch {};
+    var stdout_fh = try std.fs.cwd().createFile(stdout_path, .{ .read = true, .mode = 0o666 });
+    var stderr_fh = try std.fs.cwd().createFile(stderr_path, .{ .read = true, .mode = 0o666 });
 
-    // pclose returns the exit code shifted 1 Byte to the left...
-    exit_code >>= 8;
+    // Execute programm
+    var exit_code: i32 = run(cmd, args.items.ptr, @intCast(u32, args.items.len), stdout_fh.handle, stderr_fh.handle);
+
+    // Cleanup
+    stdout_fh.close();
+    stderr_fh.close();
+
+    // Read Outputs
+    var output = try std.fs.cwd().readFileAlloc(allocator, stdout_path, 100 * Mega);
+    var output_err = try std.fs.cwd().readFileAlloc(allocator, stderr_path, 100 * Mega);
 
     // JUST FOR DEBUGGING
     common.ewriteln("", .{});
     common.ewriteln("--------------------------------------", .{});
 
-    common.ewriteln("output     = {s}", .{output[0..used]});
-    common.ewriteln("read_bytes = {}", .{used});
+    common.ewriteln("output     = {s}", .{output});
+    common.ewriteln("output_err = {s}", .{output_err});
     common.ewriteln("exit_code  = {}", .{exit_code});
 
     common.ewriteln("--------------------------------------", .{});

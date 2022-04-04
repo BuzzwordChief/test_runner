@@ -15,6 +15,11 @@ pub fn build(b: *std.build.Builder) void {
     exe.setTarget(target);
     exe.setBuildMode(mode);
 
+    if (target.getOs().tag.isDarwin()) {
+        exe.linkFramework("Foundation");
+        exe.addObjectFile("lib/runner_macos/runner.a");
+    }
+
     // Add Packages
     exe.addPackage(.{ .name = "toml", .path = .{ .path = "lib/zig-toml/src/toml.zig" } });
 
