@@ -139,8 +139,39 @@ fn run_suite(suite: *Test_Suite) !void {
         }
 
         // @todo(may): actually run the program and test outputs/exit_code
-        try run_test(suite.path, t);
-        common.writeln("OK", .{});
+        var exit_code: i64 = undefined;
+        var output: []u8 = undefined;
+        var output_err: []u8 = undefined;
+        try run_test(suite.path, t, &exit_code, &output, &output_err);
+
+        var fail = false;
+        if (exit_code != t.exit_code) {
+            fail = true;
+            common.writeln("FAIL", .{});
+            common.writeln("    > Expected exit code {} got {}", .{ t.exit_code, exit_code });
+        }
+
+        if (!std.mem.eql(u8, output, t.output)) {
+            if (!fail) {
+                common.writeln("FAIL", .{});
+            }
+            fail = true;
+            common.writeln("    > Expected output '{s}' got '{s}'", .{ t.output, output });
+        }
+
+        if (!std.mem.eql(u8, output_err, t.output_err)) {
+            if (!fail) {
+                common.writeln("FAIL", .{});
+            }
+            fail = true;
+            common.writeln("    > Expected output_err '{s}' got '{s}'", .{ t.output_err, output_err });
+        }
+
+        if (!fail) {
+            common.writeln("OK", .{});
+        } else if (!suite.continue_on_fail) {
+            break;
+        }
     }
 }
 
@@ -148,7 +179,10 @@ pub const FILE = opaque {};
 pub extern "c" fn mkfifo(path: [*:0]const u8, mode: c_int) c_int;
 pub extern "c" fn run(path: [*:0]const u8, program_args: [*][*:0]const u8, arg_count: u32, stdout_fh: c_int, stderr_fh: c_int) c_int;
 
-fn run_test(path: string, t: Test) !void {
+// TODO: Send data over a pipe/shared memory to avoid
+//       writing it first to disk, closing the files,
+//       opening the files again and reading them...
+fn run_test(path: string, t: Test, exit_code: *i64, output: *[]u8, output_err: *[]u8) !void {
     const stdout_path = "/tmp/test_runner_stdout";
     const stderr_path = "/tmp/test_runner_stderr";
 
@@ -188,26 +222,15 @@ fn run_test(path: string, t: Test) !void {
     var stderr_fh = try std.fs.cwd().createFile(stderr_path, .{ .read = true, .mode = 0o666 });
 
     // Execute programm
-    var exit_code: i32 = run(cmd, args.items.ptr, @intCast(u32, args.items.len), stdout_fh.handle, stderr_fh.handle);
+    exit_code.* = run(cmd, args.items.ptr, @intCast(u32, args.items.len), stdout_fh.handle, stderr_fh.handle);
 
     // Cleanup
     stdout_fh.close();
     stderr_fh.close();
 
     // Read Outputs
-    var output = try std.fs.cwd().readFileAlloc(allocator, stdout_path, 100 * Mega);
-    var output_err = try std.fs.cwd().readFileAlloc(allocator, stderr_path, 100 * Mega);
-
-    // JUST FOR DEBUGGING
-    common.ewriteln("", .{});
-    common.ewriteln("--------------------------------------", .{});
-
-    common.ewriteln("output     = {s}", .{output});
-    common.ewriteln("output_err = {s}", .{output_err});
-    common.ewriteln("exit_code  = {}", .{exit_code});
-
-    common.ewriteln("--------------------------------------", .{});
-    common.ewriteln("", .{});
+    output.* = try std.fs.cwd().readFileAlloc(allocator, stdout_path, 100 * Mega);
+    output_err.* = try std.fs.cwd().readFileAlloc(allocator, stderr_path, 100 * Mega);
 }
 
 pub fn main() void {
