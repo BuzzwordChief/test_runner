@@ -38,6 +38,14 @@ pub fn build(b: *std.build.Builder) void {
     exe_tests.setTarget(target);
     exe_tests.setBuildMode(mode);
 
+    if (target.getOs().tag.isDarwin()) {
+        exe_tests.linkFramework("Foundation");
+        exe_tests.addObjectFile("lib/runner_macos/runner.a");
+    }
+
+    // Add Packages
+    exe_tests.addPackage(.{ .name = "toml", .path = .{ .path = "lib/zig-toml/src/toml.zig" } });
+
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&exe_tests.step);
 }

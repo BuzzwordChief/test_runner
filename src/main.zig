@@ -6,13 +6,29 @@ const assert = std.debug.assert;
 const common = @import("common.zig");
 
 const string = []const u8;
+const Allocator = std.mem.Allocator;
 
 const Kilo = 1024;
 const Mega = Kilo * 1024;
 const Giga = Mega * 1024;
 
-var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-const allocator = arena.allocator();
+const RST = "\x1B[0m";
+const BLK = "\x1B[0;30m";
+const RED = "\x1B[0;31m";
+const GRN = "\x1B[0;32m";
+const YEL = "\x1B[0;33m";
+const BLU = "\x1B[0;34m";
+const MAG = "\x1B[0;35m";
+const CYN = "\x1B[0;36m";
+const WHT = "\x1B[0;37m";
+const BBLK = "\x1B[1;30m";
+const BRED = "\x1B[1;31m";
+const BGRN = "\x1B[1;32m";
+const BYEL = "\x1B[1;33m";
+const BBLU = "\x1B[1;34m";
+const BMAG = "\x1B[1;35m";
+const BCYN = "\x1B[1;36m";
+const BWHT = "\x1B[1;37m";
 
 const Test_Suite = struct {
     const Self = @This();
@@ -56,7 +72,7 @@ const Test = struct {
     }
 };
 
-fn toml_to_suite(table: *toml.Table) !Test_Suite {
+fn toml_to_suite(allocator: Allocator, table: *toml.Table) !Test_Suite {
     assert(std.mem.eql(u8, table.name, ""));
 
     var path_val = table.keys.get("path") orelse {
@@ -117,7 +133,7 @@ fn toml_to_suite(table: *toml.Table) !Test_Suite {
 /// Calculates the absolute path of the executable relative to the
 /// directory of the tests.toml file. Returns if the path of the
 /// executable is already absolute.
-fn fix_exe_path(suite: *Test_Suite, config_path: string) !void {
+fn fix_exe_path(allocator: Allocator, suite: *Test_Suite, config_path: string) !void {
     if (std.fs.path.isAbsolute(suite.path)) {
         return;
     }
@@ -128,7 +144,7 @@ fn fix_exe_path(suite: *Test_Suite, config_path: string) !void {
     suite.path = try std.fs.realpathAlloc(allocator, joined);
 }
 
-fn run_suite(suite: *Test_Suite) !void {
+fn run_suite(allocator: Allocator, suite: *Test_Suite) !void {
     _ = suite;
 
     for (suite.tests.items) |t| {
@@ -142,33 +158,43 @@ fn run_suite(suite: *Test_Suite) !void {
         var exit_code: i64 = undefined;
         var output: []u8 = undefined;
         var output_err: []u8 = undefined;
-        try run_test(suite.path, t, &exit_code, &output, &output_err);
+        try run_test(allocator, suite.path, t, &exit_code, &output, &output_err);
+        defer {
+            allocator.free(output);
+            allocator.free(output_err);
+        }
 
         var fail = false;
         if (exit_code != t.exit_code) {
             fail = true;
-            common.writeln("FAIL", .{});
-            common.writeln("    > Expected exit code {} got {}", .{ t.exit_code, exit_code });
+            common.writeln(BRED ++ "FAIL" ++ RST, .{});
+            common.writeln("    > exit_code differs:", .{});
+            common.writeln("       Expected: " ++ GRN ++ "{}" ++ RST, .{t.exit_code});
+            common.writeln("       Got     : " ++ RED ++ "{}" ++ RST, .{exit_code});
         }
 
         if (!std.mem.eql(u8, output, t.output)) {
             if (!fail) {
-                common.writeln("FAIL", .{});
+                common.writeln(BRED ++ "FAIL" ++ RST, .{});
             }
             fail = true;
-            common.writeln("    > Expected output '{s}' got '{s}'", .{ t.output, output });
+            common.writeln("    > output differs:", .{});
+            common.writeln("       Expected: " ++ GRN ++ "{s}" ++ RST, .{t.output});
+            common.writeln("       Got     : " ++ RED ++ "{s}" ++ RST, .{output});
         }
 
         if (!std.mem.eql(u8, output_err, t.output_err)) {
             if (!fail) {
-                common.writeln("FAIL", .{});
+                common.writeln(BRED ++ "FAIL" ++ RST, .{});
             }
             fail = true;
-            common.writeln("    > Expected output_err '{s}' got '{s}'", .{ t.output_err, output_err });
+            common.writeln("    > output_err differs:", .{});
+            common.writeln("       Expected: " ++ GRN ++ "{s}" ++ RST, .{t.output_err});
+            common.writeln("       Got     : " ++ RED ++ "{s}" ++ RST, .{output_err});
         }
 
         if (!fail) {
-            common.writeln("OK", .{});
+            common.writeln(BGRN ++ "OK" ++ RST, .{});
         } else if (!suite.continue_on_fail) {
             break;
         }
@@ -182,7 +208,7 @@ pub extern "c" fn run(path: [*:0]const u8, program_args: [*][*:0]const u8, arg_c
 // TODO: Send data over a pipe/shared memory to avoid
 //       writing it first to disk, closing the files,
 //       opening the files again and reading them...
-fn run_test(path: string, t: Test, exit_code: *i64, output: *[]u8, output_err: *[]u8) !void {
+fn run_test(allocator: Allocator, path: string, t: Test, exit_code: *i64, output: *[]u8, output_err: *[]u8) !void {
     const stdout_path = "/tmp/test_runner_stdout";
     const stderr_path = "/tmp/test_runner_stderr";
 
@@ -234,45 +260,54 @@ fn run_test(path: string, t: Test, exit_code: *i64, output: *[]u8, output_err: *
 }
 
 pub fn main() void {
-    // defer arena.deinit();
-    const args = std.process.argsAlloc(allocator) catch unreachable;
-    //defer std.process.argsFree(allocator, args);
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var allocator = arena.allocator();
 
+    const args = std.process.argsAlloc(allocator) catch {
+        common.ewriteln("Unable to get process arguments", .{});
+        return;
+    };
+    defer std.process.argsFree(allocator, args);
+
+    main_proc(allocator, args);
+}
+
+/// Used to easily test for leaking memory
+fn main_proc(allocator: Allocator, args: []const []const u8) void {
     if (args.len < 2) {
         common.ewriteln("No path to tests.toml provided.", .{});
         return;
     }
 
-    var file = std.fs.cwd().openFile(args[1], .{ .mode = .read_only }) catch {
-        common.ewriteln("Unable to open the tests.toml file.", .{});
-        return;
-    };
-    defer file.close();
-
-    var file_content = file.readToEndAlloc(allocator, 100 * Mega) catch |err| {
+    var file_content = std.fs.cwd().readFileAlloc(allocator, args[1], 100 * Mega) catch |err| {
         common.ewriteln("Unable to read tests.toml file.", .{});
         common.ewriteln("  Hint: {s}", .{@errorName(err)});
         return;
     };
-    // defer allocator.free(file_content);
+    defer allocator.free(file_content);
 
     var table = toml.parseContents(allocator, file_content, null) catch |err| {
         common.ewriteln("Error while parsing tests.toml file.", .{});
         common.ewriteln("  Hint: {s}", .{@errorName(err)});
         return;
     };
-    // defer table.deinit();
+    defer table.deinit();
 
-    var suite = toml_to_suite(table) catch return;
-    // defer suite.deinit();
+    var suite = toml_to_suite(allocator, table) catch return;
+    defer suite.deinit();
 
-    fix_exe_path(&suite, args[1]) catch |err| {
+    fix_exe_path(allocator, &suite, args[1]) catch |err| {
         common.ewriteHint("Invalid executable path provided.", err, .{});
         return;
     };
 
     common.writeln("Running Tests [{s}]", .{args[1]});
-    run_suite(&suite) catch |err| {
+    run_suite(allocator, &suite) catch |err| {
         common.ewriteHint("Error while running tests.", err, .{});
     };
+}
+
+test "Memory leak test" {
+    main_proc(std.testing.allocator, &.{ "", "/Users/bc/source/test_runner/test/tests.toml.example" });
 }

@@ -2,13 +2,13 @@
 path = "example_program" # Relative to this file
 continue_on_fail = true
 
-[Test_1] # This should pass
+[Green_Test]
 input      = "-some -program -arguments"
 output     = "-some -program -arguments"
 output_err = "error_output"
 exit_code  = 69
 
-[Test_2] # This test should not pass
+[Failing_Test]
 input      = "ARG2"
 output     = "OUT2"
 output_err = "OUT_ERR2"
