@@ -72,7 +72,7 @@ const Test = struct {
     }
 };
 
-fn toml_to_suite(allocator: Allocator, table: *toml.Table) !Test_Suite {
+fn tomlToSuite(allocator: Allocator, table: *toml.Table) !Test_Suite {
     assert(std.mem.eql(u8, table.name, ""));
 
     var path_val = table.keys.get("path") orelse {
@@ -133,7 +133,7 @@ fn toml_to_suite(allocator: Allocator, table: *toml.Table) !Test_Suite {
 /// Calculates the absolute path of the executable relative to the
 /// directory of the tests.toml file. Returns if the path of the
 /// executable is already absolute.
-fn fix_exe_path(allocator: Allocator, suite: *Test_Suite, config_path: string) !void {
+fn fixExePath(allocator: Allocator, suite: *Test_Suite, config_path: string) !void {
     if (std.fs.path.isAbsolute(suite.path)) {
         return;
     }
@@ -144,7 +144,7 @@ fn fix_exe_path(allocator: Allocator, suite: *Test_Suite, config_path: string) !
     suite.path = try std.fs.realpathAlloc(allocator, joined);
 }
 
-fn run_suite(allocator: Allocator, suite: *Test_Suite) !void {
+fn runSuite(allocator: Allocator, suite: *Test_Suite) !void {
     _ = suite;
 
     for (suite.tests.items) |t| {
@@ -158,7 +158,7 @@ fn run_suite(allocator: Allocator, suite: *Test_Suite) !void {
         var exit_code: i64 = undefined;
         var output: []u8 = undefined;
         var output_err: []u8 = undefined;
-        try run_test(allocator, suite.path, t, &exit_code, &output, &output_err);
+        try runTest(allocator, suite.path, t, &exit_code, &output, &output_err);
         defer {
             allocator.free(output);
             allocator.free(output_err);
@@ -208,7 +208,7 @@ pub extern "c" fn run(path: [*:0]const u8, program_args: [*][*:0]const u8, arg_c
 // TODO: Send data over a pipe/shared memory to avoid
 //       writing it first to disk, closing the files,
 //       opening the files again and reading them...
-fn run_test(allocator: Allocator, path: string, t: Test, exit_code: *i64, output: *[]u8, output_err: *[]u8) !void {
+fn runTest(allocator: Allocator, path: string, t: Test, exit_code: *i64, output: *[]u8, output_err: *[]u8) !void {
     const stdout_path = "/tmp/test_runner_stdout";
     const stderr_path = "/tmp/test_runner_stderr";
 
@@ -270,11 +270,11 @@ pub fn main() void {
     };
     defer std.process.argsFree(allocator, args);
 
-    main_proc(allocator, args);
+    mainProc(allocator, args);
 }
 
 /// Used to easily test for leaking memory
-fn main_proc(allocator: Allocator, args: []const []const u8) void {
+fn mainProc(allocator: Allocator, args: []const []const u8) void {
     if (args.len < 2) {
         common.ewriteln("No path to tests.toml provided.", .{});
         return;
@@ -294,20 +294,20 @@ fn main_proc(allocator: Allocator, args: []const []const u8) void {
     };
     defer table.deinit();
 
-    var suite = toml_to_suite(allocator, table) catch return;
+    var suite = tomlToSuite(allocator, table) catch return;
     defer suite.deinit();
 
-    fix_exe_path(allocator, &suite, args[1]) catch |err| {
+    fixExePath(allocator, &suite, args[1]) catch |err| {
         common.ewriteHint("Invalid executable path provided.", err, .{});
         return;
     };
 
     common.writeln("Running Tests [{s}]", .{args[1]});
-    run_suite(allocator, &suite) catch |err| {
+    runSuite(allocator, &suite) catch |err| {
         common.ewriteHint("Error while running tests.", err, .{});
     };
 }
 
 test "Memory leak test" {
-    main_proc(std.testing.allocator, &.{ "", "/Users/bc/source/test_runner/test/tests.toml.example" });
+    mainProc(std.testing.allocator, &.{ "", "/Users/bc/source/test_runner/test/tests.toml.example" });
 }
