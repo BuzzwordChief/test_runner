@@ -1,25 +1,25 @@
 const std = @import("std");
 
 const Token = union(enum) {
-    Identifier:   [] const u8,
-    Bool:         bool,
-    String:       [] const u8,
-    Integer:      i64,
-    OpenBracket:  void,
+    Identifier: []const u8,
+    Bool: bool,
+    String: []const u8,
+    Integer: i64,
+    OpenBracket: void,
     CloseBracket: void,
-    Equals_Sign:  void,
-    EOF:          void,
+    Equals_Sign: void,
+    EOF: void,
 };
 
 const Tokenizer = struct {
-    data: [] const u8,
-    col:  u64 = 0,
+    data: []const u8,
+    col: u64 = 0,
     line: u64 = 1,
-    i:    u64 = 0,
+    i: u64 = 0,
 
     /// Lex next token without consuming it
     pub fn peekToken(self: *Tokenizer) !Token {
-        var tmp    = self.*;
+        var tmp = self.*;
         return tmp.nextToken();
     }
 
@@ -27,8 +27,8 @@ const Tokenizer = struct {
         // Skip whitespace and check for EOF
         {
             var skip_whitespace = true;
-            var skip_comment    = false;
-            while(skip_whitespace) {
+            var skip_comment = false;
+            while (skip_whitespace) {
                 if (self.i >= self.data.len) {
                     return Token{ .EOF = undefined };
                 }
@@ -38,9 +38,9 @@ const Tokenizer = struct {
                     skip_comment = true;
                     self.step(1);
                 } else if (c == '\n') {
-                    self.col   = 0;
+                    self.col = 0;
                     self.line += 1;
-                    self.i    += 1;
+                    self.i += 1;
                     skip_comment = false;
                 } else if (c == ' ' or c == '\r' or c == '\t') {
                     self.step(1);
@@ -50,7 +50,7 @@ const Tokenizer = struct {
             }
         }
 
-        var state : Token = switch (self.data[self.i]) {
+        var state: Token = switch (self.data[self.i]) {
             '[' => val: {
                 self.step(1);
                 break :val Token{ .OpenBracket = undefined };
@@ -70,22 +70,22 @@ const Tokenizer = struct {
                 self.step(1);
 
                 // TODO(may): Handle \r\n
-                if ( (self.i < self.data.len - 1) and self.data[self.i] == '\n' ) {
+                if ((self.i < self.data.len - 1) and self.data[self.i] == '\n') {
                     self.step(1);
                 }
 
                 const start = self.i;
 
-                while( (self.i < self.data.len) and self.data[self.i] != '"') {
+                while ((self.i < self.data.len) and self.data[self.i] != '"') {
                     if (self.data[self.i] == '\n') {
-                        self.i    += 1;
+                        self.i += 1;
                         self.line += 1;
-                        self.col   = 0;
+                        self.col = 0;
                     } else {
                         self.step(1);
                     }
                 } else {
-                    if ( self.i >= self.data.len ) {
+                    if (self.i >= self.data.len) {
                         return error.StringNotClosed;
                     }
                 }
@@ -97,7 +97,7 @@ const Tokenizer = struct {
             '0'...'9' => val: {
                 var number = self.data[self.i] - '0';
                 self.step(1);
-                while( (self.i < self.data.len) and (self.data[self.i] >= '0' and self.data[self.i] <= '9') ) : (self.step(1)) {
+                while ((self.i < self.data.len) and (self.data[self.i] >= '0' and self.data[self.i] <= '9')) : (self.step(1)) {
                     number *= 10;
                     number += self.data[self.i] - '0';
                 }
@@ -106,21 +106,20 @@ const Tokenizer = struct {
             },
             else => val: {
                 // Parse boolean
-                if ( caseInsensitiveStartsWith("true", self.data[self.i..]) ) {
+                if (caseInsensitiveStartsWith("true", self.data[self.i..])) {
                     self.step(4);
-                    break :val Token{.Bool = true};
-                } else if ( caseInsensitiveStartsWith("false", self.data[self.i..]) ) {
+                    break :val Token{ .Bool = true };
+                } else if (caseInsensitiveStartsWith("false", self.data[self.i..])) {
                     self.step(5);
-                    break :val Token{.Bool = false};
+                    break :val Token{ .Bool = false };
                 }
-
 
                 // Parse identifier
                 // TODO: break on [,],",WHITESPACE
                 const start = self.i;
 
                 var c = self.data[self.i];
-                while( (self.i < self.data.len) ) : (c = self.data[self.i]) {
+                while ((self.i < self.data.len)) : (c = self.data[self.i]) {
                     if (isWhitespace(c)) break;
                     if (c == '[') break;
                     if (c == ']') break;
@@ -131,23 +130,13 @@ const Tokenizer = struct {
                 }
 
                 break :val Token{ .Identifier = self.data[start..self.i] };
-            }
+            },
         };
 
         return state;
     }
-
-
-    /// Returns true  if next is a line ending e.g. \n or \r\n
-    /// Returns false if not next is not a line ending or no data left
-    fn nextIsLineEnding(self: *Tokenizer) bool {
-        if (self.i >= self.data.len) return false;
-
-        return (self.data[self.i] == '\n');
-    }
-
     /// Check if b starts with a
-    fn caseInsensitiveStartsWith(prefix: [] const u8, str: [] const u8) bool {
+    fn caseInsensitiveStartsWith(prefix: []const u8, str: []const u8) bool {
         if (str.len - prefix.len >= 0) {
             return caseInsensitiveCompare(prefix, str[0..prefix.len]);
         } else {
@@ -155,11 +144,11 @@ const Tokenizer = struct {
         }
     }
 
-    fn caseInsensitiveCompare(a: [] const u8, b: []const u8) bool {
+    fn caseInsensitiveCompare(a: []const u8, b: []const u8) bool {
         if (a.len != b.len) return false;
 
         for (a) |c, i| {
-            var c1 = if (c >= 'A' and c <= 'Z') c    + 32 else c;
+            var c1 = if (c >= 'A' and c <= 'Z') c + 32 else c;
             var c2 = if (c >= 'A' and c <= 'Z') b[i] + 32 else b[i];
             if (c1 != c2) return false;
         }
@@ -167,38 +156,46 @@ const Tokenizer = struct {
         return true;
     }
 
-    pub fn isWhitespace(c: u8) bool {
+    fn isWhitespace(c: u8) bool {
         return c == ' ' or c == '\r' or c == '\n' or c == '\t';
+    }
+
+    /// Returns true  if next is a line ending e.g. \n or \r\n
+    /// Returns false if not next is not a line ending or no data left
+    fn isLineEnding(self: *Tokenizer) bool {
+        if (self.i >= self.data.len) return false;
+
+        return (self.data[self.i] == '\n');
     }
 
     /// Increases both col and index value
     fn step(self: *Tokenizer, count: u32) void {
-        self.i   += count;
+        self.i += count;
         self.col += count;
     }
 };
 
-const Pair = struct { name: [] const u8, value: Toml_Value};
+const Pair = struct { name: []const u8, value: Toml_Value };
 
 const Toml_Value = union(enum) {
-    Bool:    bool,
-    String:  [] const u8,
+    Bool: bool,
+    String: []const u8,
     Integer: i64,
-    Table:   Toml_Table,
+    Table: Toml_Table,
 };
 
 const Toml_Table = struct {
     allocator: std.mem.Allocator,
-    items: [] Pair,
+    items: []Pair,
 
     pub fn init(allocator: std.mem.Allocator) Toml_Table {
         return .{
             .allocator = allocator,
-            .items     = &([0] Pair {}),
+            .items = &([0]Pair{}),
         };
     }
 
-    pub fn deinit(self: * const Toml_Table) void {
+    pub fn deinit(self: *const Toml_Table) void {
         for (self.items) |*item| {
             if (item.value == Toml_Value.Table) {
                 item.value.Table.deinit();
@@ -217,7 +214,7 @@ const Parser = struct {
     allocator: std.mem.Allocator,
     tokenizer: Tokenizer,
 
-    pub fn init(allocator: std.mem.Allocator, data: [] const u8) Parser {
+    pub fn init(allocator: std.mem.Allocator, data: []const u8) Parser {
         return .{
             .allocator = allocator,
             .tokenizer = Tokenizer{ .data = data },
@@ -228,12 +225,12 @@ const Parser = struct {
         var result = Toml_Table.init(self.allocator);
         errdefer result.deinit();
 
-        var state : enum {
+        var state: enum {
             Key_Or_Header,
             Equals_Sign,
             Value,
         } = .Key_Or_Header;
-        var item : Pair = undefined;
+        var item: Pair = undefined;
         var current_table = &result;
         while (true) {
             var token = try self.tokenizer.nextToken();
@@ -305,7 +302,7 @@ const Parser = struct {
     }
 };
 
-const expectEqual        = std.testing.expectEqual;
+const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 
 test "Simple Tokenizer Test" {
@@ -318,7 +315,6 @@ test "Simple Tokenizer Test" {
     ;
 
     var tokenizer = Tokenizer{ .data = test_string };
-
 
     // 1. Line
     var token = try tokenizer.nextToken();
@@ -350,7 +346,6 @@ test "Simple Tokenizer Test" {
     try expectEqual(@as(u64, 2), tokenizer.line);
     try expectEqual(@as(u64, 14), tokenizer.col); // Tokenizer should be on the \n
 
-
     // 3. Line
     token = try tokenizer.nextToken();
     try expectEqual(Token.Identifier, token);
@@ -366,7 +361,6 @@ test "Simple Tokenizer Test" {
     try expectEqual(@as(u64, 3), tokenizer.line);
     try expectEqual(@as(u64, 15), tokenizer.col); // Tokenizer should be on the \n
 
-
     // 4. Line
     token = try tokenizer.nextToken();
     try expectEqual(Token.OpenBracket, token);
@@ -380,7 +374,6 @@ test "Simple Tokenizer Test" {
 
     try expectEqual(@as(u64, 4), tokenizer.line);
     try expectEqual(@as(u64, 7), tokenizer.col); // Tokenizer should be on the \n
-
 
     // 5. Line
     token = try tokenizer.nextToken();
@@ -398,7 +391,9 @@ test "Simple Tokenizer Test" {
     try expectEqual(Token.EOF, token);
 }
 
-fn range(comptime n: comptime_int) [n]void { return undefined; }
+fn range(comptime n: comptime_int) [n]void {
+    return undefined;
+}
 
 test "Peek Token Test" {
     const test_string =
@@ -464,7 +459,7 @@ test "Simple Parser Test" {
     try expectEqual(@as(usize, 3), result.items.len);
 
     try expectEqualStrings("tstring", result.items[0].name);
-    try expectEqualStrings("hello",   result.items[0].value.String);
+    try expectEqualStrings("hello", result.items[0].value.String);
 
     try expectEqualStrings("tbool", result.items[1].name);
     try expectEqual(true, result.items[1].value.Bool);

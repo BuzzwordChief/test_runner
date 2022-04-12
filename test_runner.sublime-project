@@ -1,0 +1,19 @@
+{
+	"folders":
+	[
+		{
+			"path": ".",
+		}
+	],
+	"debugger_configurations":
+	[
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Launch",
+            "program": "${folder}/zig-out/bin/test_runner",
+            "args": ["test/tests.toml.example"],
+            "cwd": "${folder}"
+        },
+	],
+}
