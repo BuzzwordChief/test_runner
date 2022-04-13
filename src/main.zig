@@ -154,10 +154,6 @@ fn runSuite(allocator: Allocator, suite: *Test_Suite) !void {
             common.write(".", .{});
         }
 
-        // @todo(may): actually run the program and test outputs/exit_code
-        // var exit_code: i64 = undefined;
-        // var output: []u8 = undefined;
-        // var output_err: []u8 = undefined;
         var result = try runTest(allocator, suite.path, t);
         defer {
             allocator.free(result.stderr);
@@ -174,9 +170,7 @@ fn runSuite(allocator: Allocator, suite: *Test_Suite) !void {
         if (result.term.Exited != t.exit_code) {
             fail = true;
             common.writeln(BRED ++ "FAIL" ++ RST, .{});
-            common.writeln("    > exit_code differs:", .{});
-            common.writeln("       Expected: " ++ GRN ++ "{}" ++ RST, .{t.exit_code});
-            common.writeln("       Got     : " ++ RED ++ "{}" ++ RST, .{result.term.Exited});
+            printDifference("exit code", t.exit_code, result.term.Exited);
         }
 
         if (!std.mem.eql(u8, result.stdout, t.output)) {
@@ -184,9 +178,7 @@ fn runSuite(allocator: Allocator, suite: *Test_Suite) !void {
                 common.writeln(BRED ++ "FAIL" ++ RST, .{});
             }
             fail = true;
-            common.writeln("    > output differs:", .{});
-            common.writeln("       Expected: " ++ GRN ++ "{s}" ++ RST, .{t.output});
-            common.writeln("       Got     : " ++ RED ++ "{s}" ++ RST, .{result.stdout});
+            printDifference("output", t.output, result.stdout);
         }
 
         if (!std.mem.eql(u8, result.stderr, t.output_err)) {
@@ -194,9 +186,7 @@ fn runSuite(allocator: Allocator, suite: *Test_Suite) !void {
                 common.writeln(BRED ++ "FAIL" ++ RST, .{});
             }
             fail = true;
-            common.writeln("    > output_err differs:", .{});
-            common.writeln("       Expected: " ++ GRN ++ "{s}" ++ RST, .{t.output_err});
-            common.writeln("       Got     : " ++ RED ++ "{s}" ++ RST, .{result.stderr});
+            printDifference("output_err", t.output_err, result.stderr);
         }
 
         if (!fail) {
@@ -205,6 +195,17 @@ fn runSuite(allocator: Allocator, suite: *Test_Suite) !void {
             break;
         }
     }
+}
+
+fn printDifference(comptime name: string, expected: anytype, got: @TypeOf(expected)) void {
+    const format = switch (@TypeOf(expected)) {
+        string => "s",
+        else => "",
+    };
+
+    common.writeln("    > " ++ name ++ " differs:", .{});
+    common.writeln("       Expected: " ++ GRN ++ "{" ++ format ++ "}" ++ RST, .{expected});
+    common.writeln("       Got     : " ++ RED ++ "{" ++ format ++ "}" ++ RST, .{got});
 }
 
 fn runTest(allocator: Allocator, path: string, t: Test) !std.ChildProcess.ExecResult {
