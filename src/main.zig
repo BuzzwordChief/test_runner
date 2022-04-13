@@ -155,42 +155,48 @@ fn runSuite(allocator: Allocator, suite: *Test_Suite) !void {
         }
 
         // @todo(may): actually run the program and test outputs/exit_code
-        var exit_code: i64 = undefined;
-        var output: []u8 = undefined;
-        var output_err: []u8 = undefined;
-        try runTest(allocator, suite.path, t, &exit_code, &output, &output_err);
+        // var exit_code: i64 = undefined;
+        // var output: []u8 = undefined;
+        // var output_err: []u8 = undefined;
+        var result = try runTest(allocator, suite.path, t);
         defer {
-            allocator.free(output);
-            allocator.free(output_err);
+            allocator.free(result.stderr);
+            allocator.free(result.stdout);
+        }
+
+        if (result.term != .Exited) {
+            common.writeln(BRED ++ "FAIL" ++ RST, .{});
+            common.writeln("    > Program did not exit correctly (exit code could not be attained)", .{});
+            return;
         }
 
         var fail = false;
-        if (exit_code != t.exit_code) {
+        if (result.term.Exited != t.exit_code) {
             fail = true;
             common.writeln(BRED ++ "FAIL" ++ RST, .{});
             common.writeln("    > exit_code differs:", .{});
             common.writeln("       Expected: " ++ GRN ++ "{}" ++ RST, .{t.exit_code});
-            common.writeln("       Got     : " ++ RED ++ "{}" ++ RST, .{exit_code});
+            common.writeln("       Got     : " ++ RED ++ "{}" ++ RST, .{result.term.Exited});
         }
 
-        if (!std.mem.eql(u8, output, t.output)) {
+        if (!std.mem.eql(u8, result.stdout, t.output)) {
             if (!fail) {
                 common.writeln(BRED ++ "FAIL" ++ RST, .{});
             }
             fail = true;
             common.writeln("    > output differs:", .{});
             common.writeln("       Expected: " ++ GRN ++ "{s}" ++ RST, .{t.output});
-            common.writeln("       Got     : " ++ RED ++ "{s}" ++ RST, .{output});
+            common.writeln("       Got     : " ++ RED ++ "{s}" ++ RST, .{result.stdout});
         }
 
-        if (!std.mem.eql(u8, output_err, t.output_err)) {
+        if (!std.mem.eql(u8, result.stderr, t.output_err)) {
             if (!fail) {
                 common.writeln(BRED ++ "FAIL" ++ RST, .{});
             }
             fail = true;
             common.writeln("    > output_err differs:", .{});
             common.writeln("       Expected: " ++ GRN ++ "{s}" ++ RST, .{t.output_err});
-            common.writeln("       Got     : " ++ RED ++ "{s}" ++ RST, .{output_err});
+            common.writeln("       Got     : " ++ RED ++ "{s}" ++ RST, .{result.stderr});
         }
 
         if (!fail) {
@@ -201,62 +207,22 @@ fn runSuite(allocator: Allocator, suite: *Test_Suite) !void {
     }
 }
 
-pub const FILE = opaque {};
-pub extern "c" fn mkfifo(path: [*:0]const u8, mode: c_int) c_int;
-pub extern "c" fn run(path: [*:0]const u8, program_args: [*][*:0]const u8, arg_count: u32, stdout_fh: c_int, stderr_fh: c_int) c_int;
-
-// TODO: Send data over a pipe/shared memory to avoid
-//       writing it first to disk, closing the files,
-//       opening the files again and reading them...
-fn runTest(allocator: Allocator, path: string, t: Test, exit_code: *i64, output: *[]u8, output_err: *[]u8) !void {
-    const stdout_path = "/tmp/test_runner_stdout";
-    const stderr_path = "/tmp/test_runner_stderr";
-
-    // Assemble the cmd
-    var cmd = try allocator.allocSentinel(u8, (path.len), 0);
-    defer allocator.free(cmd);
-    std.mem.copy(u8, cmd, path);
-
-    // Assemble arguments
+fn runTest(allocator: Allocator, path: string, t: Test) !std.ChildProcess.ExecResult {
+    var argv = std.ArrayList([]const u8).init(allocator);
+    defer argv.deinit();
+    try argv.append(path);
     var start: usize = 0;
-    var args = std.ArrayList([*:0]u8).init(allocator);
-    defer {
-        // Destroy? We should call free but [*:u8] can't be freed
-        // it must be [:u8]...
-        for (args.items) |e| allocator.destroy(e);
-        args.deinit();
-    }
     for (t.input) |c, i| {
         if (c == ' ') {
-            if (start != i) {
-                var arg = try allocator.allocSentinel(u8, i - start, 0);
-                std.mem.copy(u8, arg, t.input[start..i]);
-                try args.append(arg);
-            }
+            try argv.append(t.input[start..i]);
             start = i + 1;
-        } else if (i == (t.input.len - 1)) {
-            var arg = try allocator.allocSentinel(u8, i + 1 - start, 0);
-            std.mem.copy(u8, arg, t.input[start..(i + 1)]);
-            try args.append(arg);
         }
     }
+    if (start != t.input.len) {
+        try argv.append(t.input[start..]);
+    }
 
-    // create tmp files
-    std.fs.cwd().deleteFile(stdout_path) catch {};
-    std.fs.cwd().deleteFile(stderr_path) catch {};
-    var stdout_fh = try std.fs.cwd().createFile(stdout_path, .{ .read = true, .mode = 0o666 });
-    var stderr_fh = try std.fs.cwd().createFile(stderr_path, .{ .read = true, .mode = 0o666 });
-
-    // Execute programm
-    exit_code.* = run(cmd, args.items.ptr, @intCast(u32, args.items.len), stdout_fh.handle, stderr_fh.handle);
-
-    // Cleanup
-    stdout_fh.close();
-    stderr_fh.close();
-
-    // Read Outputs
-    output.* = try std.fs.cwd().readFileAlloc(allocator, stdout_path, 100 * Mega);
-    output_err.* = try std.fs.cwd().readFileAlloc(allocator, stderr_path, 100 * Mega);
+    return std.ChildProcess.exec(.{ .allocator = allocator, .argv = argv.items });
 }
 
 pub fn main() void {
