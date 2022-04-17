@@ -15,11 +15,6 @@ pub fn build(b: *std.build.Builder) void {
     exe.setTarget(target);
     exe.setBuildMode(mode);
 
-    if (target.getOs().tag.isDarwin()) {
-        exe.linkFramework("Foundation");
-        exe.addObjectFile("lib/runner_macos/runner.a");
-    }
-
     // Add Packages
     exe.addPackage(.{ .name = "toml", .path = .{ .path = "lib/zig-toml/src/toml.zig" } });
 
@@ -37,11 +32,6 @@ pub fn build(b: *std.build.Builder) void {
     const exe_tests = b.addTest("src/main.zig");
     exe_tests.setTarget(target);
     exe_tests.setBuildMode(mode);
-
-    if (target.getOs().tag.isDarwin()) {
-        exe_tests.linkFramework("Foundation");
-        exe_tests.addObjectFile("lib/runner_macos/runner.a");
-    }
 
     // Add Packages
     exe_tests.addPackage(.{ .name = "toml", .path = .{ .path = "lib/zig-toml/src/toml.zig" } });
