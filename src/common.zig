@@ -1,10 +1,7 @@
 const std = @import("std");
 
-const stdout = std.io.getStdOut().writer();
-const stderr = std.io.getStdErr().writer();
-const stdin = std.io.getStdErr().reader();
-
 pub fn write(comptime fmt: []const u8, args: anytype) void {
+    const stdout = std.io.getStdOut().writer();
     stdout.print(fmt, args) catch unreachable;
 }
 
@@ -13,6 +10,7 @@ pub fn writeln(comptime fmt: []const u8, args: anytype) void {
 }
 
 pub fn ewrite(comptime fmt: []const u8, args: anytype) void {
+    const stderr = std.io.getStdErr().writer();
     stderr.print(fmt, args) catch unreachable;
 }
 
