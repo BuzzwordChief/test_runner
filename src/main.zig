@@ -133,15 +133,12 @@ fn tomlToSuite(allocator: Allocator, table: *toml.Table) !Test_Suite {
 /// Calculates the absolute path of the executable relative to the
 /// directory of the tests.toml file. Returns if the path of the
 /// executable is already absolute.
-fn fixExePath(allocator: Allocator, suite: *Test_Suite, config_path: string) !void {
+fn fixExePath(allocator: Allocator, suite: *Test_Suite) !void {
     if (std.fs.path.isAbsolute(suite.path)) {
         return;
     }
 
-    var dir = std.fs.path.dirname(config_path) orelse &[_]u8{};
-    var joined = try std.fs.path.join(allocator, &.{ dir, suite.path });
-    defer allocator.free(joined);
-    suite.path = try std.fs.realpathAlloc(allocator, joined);
+    suite.path = try std.fs.cwd().realpathAlloc(allocator, suite.path);
 }
 
 fn runSuite(allocator: Allocator, suite: *Test_Suite) !void {
@@ -208,6 +205,19 @@ fn printDifference(comptime name: string, expected: anytype, got: @TypeOf(expect
     common.writeln("       Got     : " ++ RED ++ "{" ++ format ++ "}" ++ RST, .{got});
 }
 
+/// switch the cwd to the dir of the path
+fn setCwd(allocator: Allocator, path: string) !void {
+    var config_path = try std.fs.realpathAlloc(allocator, path);
+    defer allocator.free(config_path);
+
+    var dir_path = std.fs.path.dirname(config_path) orelse &([_]u8{std.fs.path.delimiter});
+    common.ewriteln("{s}", .{dir_path});
+    var dir = try std.fs.openDirAbsolute(dir_path, .{});
+    defer dir.close();
+
+    try dir.setAsCwd();
+}
+
 fn runTest(allocator: Allocator, path: string, t: Test) !std.ChildProcess.ExecResult {
     var argv = std.ArrayList([]const u8).init(allocator);
     defer argv.deinit();
@@ -254,6 +264,11 @@ fn mainProc(allocator: Allocator, args: []const []const u8) void {
     };
     defer allocator.free(file_content);
 
+    setCwd(allocator, args[1]) catch |err| {
+        common.ewriteln("Unable to switch current working directory.", .{});
+        common.ewriteln("  Hint: {s}", .{@errorName(err)});
+    };
+
     var table = toml.parseContents(allocator, file_content, null) catch |err| {
         common.ewriteln("Error while parsing tests.toml file.", .{});
         common.ewriteln("  Hint: {s}", .{@errorName(err)});
@@ -264,9 +279,8 @@ fn mainProc(allocator: Allocator, args: []const []const u8) void {
     var suite = tomlToSuite(allocator, table) catch return;
     defer suite.deinit();
 
-    fixExePath(allocator, &suite, args[1]) catch |err| {
-        common.ewriteHint("Invalid executable path provided.", err, .{});
-        return;
+    fixExePath(allocator, &suite) catch |err| {
+        common.ewriteHint("Unable to resolve executable path.", err, .{});
     };
 
     common.writeln("Running Tests [{s}]", .{args[1]});
