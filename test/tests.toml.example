@@ -1,11 +1,12 @@
 # This is the general configuration.
 path = "example_program" # Relative to this file
 continue_on_fail = true
+line_endings_strict = false
 
 [Green_Test]
 input      = "-some -program -arguments"
 output     = "-some -program -arguments"
-output_err = "error_output"
+output_err = "/Users/bc/source/test_runner/test"
 exit_code  = 69
 
 [Failing_Test]

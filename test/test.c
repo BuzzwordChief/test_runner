@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <unistd.h>
 
 int main(int argc, char** argv) {
 
@@ -9,7 +10,10 @@ int main(int argc, char** argv) {
         }
     }
 
-    fprintf(stderr, "error_output");
+    char cwd_path[4096];
+    getcwd(cwd_path, 4095);
+    cwd_path[4095] = 0;
+    fprintf(stderr, "%s", cwd_path);
 
     return 69;
 }
