@@ -146,8 +146,9 @@ fn runSuite(allocator: Allocator, suite: *Test_Suite) !void {
 
     for (suite.tests.items) |t| {
         common.write("{s}", .{t.name});
-        var i: usize = 0;
-        while (i < (70 - t.name.len)) : (i += 1) {
+
+        var i: usize = (70 - t.name.len);
+        while (i != 0) : (i -= 1) {
             common.write(".", .{});
         }
 
