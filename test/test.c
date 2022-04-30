@@ -15,5 +15,7 @@ int main(int argc, char** argv) {
     cwd_path[4095] = 0;
     fprintf(stderr, "%s", cwd_path);
 
+    usleep(1000 * 500);
+
     return 69;
 }

@@ -175,38 +175,33 @@ const Tokenizer = struct {
     }
 };
 
-const Pair = struct { name: []const u8, value: Toml_Value };
-
-const Toml_Value = union(enum) {
+const Value = union(enum) {
     Bool: bool,
     String: []const u8,
     Integer: i64,
-    Table: Toml_Table,
+    Table: Table,
 };
 
-const Toml_Table = struct {
-    allocator: std.mem.Allocator,
-    items: []Pair,
+const Table = struct {
+    const Item_Type = std.StringHashMap(Value);
 
-    pub fn init(allocator: std.mem.Allocator) Toml_Table {
+    items: Item_Type,
+
+    pub fn init(allocator: std.mem.Allocator) Table {
         return .{
-            .allocator = allocator,
-            .items = &([0]Pair{}),
+            .items = Item_Type.init(allocator),
         };
     }
 
-    pub fn deinit(self: *const Toml_Table) void {
-        for (self.items) |*item| {
-            if (item.value == Toml_Value.Table) {
-                item.value.Table.deinit();
+    pub fn deinit(self: *Table) void {
+        var iterator = self.items.valueIterator();
+        while (iterator.next()) |item| {
+            if (item.* == Value.Table) {
+                item.Table.deinit();
             }
         }
-        self.allocator.free(self.items);
-    }
 
-    pub fn appendItem(self: *Toml_Table, item: Pair) !void {
-        self.items = try self.allocator.realloc(self.items, self.items.len + 1); // @speed make this faster by reserving some capacity
-        self.items[self.items.len - 1] = item;
+        self.items.deinit();
     }
 };
 
@@ -221,8 +216,8 @@ const Parser = struct {
         };
     }
 
-    pub fn parse(self: *Parser) !Toml_Table {
-        var result = Toml_Table.init(self.allocator);
+    pub fn parse(self: *Parser) !Table {
+        var result = Table.init(self.allocator);
         errdefer result.deinit();
 
         var state: enum {
@@ -230,7 +225,8 @@ const Parser = struct {
             Equals_Sign,
             Value,
         } = .Key_Or_Header;
-        var item: Pair = undefined;
+        var name: []const u8 = undefined;
+        var value: Value = undefined;
         var current_table = &result;
         while (true) {
             var token = try self.tokenizer.nextToken();
@@ -248,24 +244,23 @@ const Parser = struct {
             switch (state) {
                 .Key_Or_Header => {
                     if (token == .Identifier) {
-                        item.name = token.Identifier;
+                        name = token.Identifier;
                         state = .Equals_Sign;
                     } else if (token == .OpenBracket) {
                         token = try self.tokenizer.nextToken();
                         if (token != .Identifier) {
                             return error.Expected_Identifier;
                         }
-                        item.name = token.Identifier;
+                        name = token.Identifier;
 
                         token = try self.tokenizer.nextToken();
                         if (token != .CloseBracket) {
                             return error.Expected_Closing_Bracket;
                         }
 
-                        item.value = Toml_Value{ .Table = Toml_Table.init(self.allocator) };
-                        var insert_index = result.items.len;
-                        try result.appendItem(item);
-                        current_table = &result.items[insert_index].value.Table;
+                        value = Value{ .Table = Table.init(self.allocator) };
+                        try result.items.put(name, value);
+                        current_table = &(result.items.getPtr(name) orelse unreachable).Table;
                     } else {
                         std.debug.print("\n\n{}\n\n", .{token});
                         return error.Expected_Key_Or_Value;
@@ -280,16 +275,16 @@ const Parser = struct {
                 },
                 .Value => {
                     if (token == .String) {
-                        item.value = Toml_Value{ .String = token.String };
-                        try current_table.appendItem(item);
+                        value = Value{ .String = token.String };
+                        try current_table.items.put(name, value);
                         state = .Key_Or_Header;
                     } else if (token == .Bool) {
-                        item.value = Toml_Value{ .Bool = token.Bool };
-                        try current_table.appendItem(item);
+                        value = Value{ .Bool = token.Bool };
+                        try current_table.items.put(name, value);
                         state = .Key_Or_Header;
                     } else if (token == .Integer) {
-                        item.value = Toml_Value{ .Integer = token.Integer };
-                        try current_table.appendItem(item);
+                        value = Value{ .Integer = token.Integer };
+                        try current_table.items.put(name, value);
                         state = .Key_Or_Header;
                     } else {
                         return error.Expected_Value;
@@ -456,18 +451,14 @@ test "Simple Parser Test" {
     var result = try parser.parse();
     defer result.deinit();
 
-    try expectEqual(@as(usize, 3), result.items.len);
+    try expectEqual(@as(u32, 3), result.items.count());
 
-    try expectEqualStrings("tstring", result.items[0].name);
-    try expectEqualStrings("hello", result.items[0].value.String);
+    try expectEqualStrings("hello", result.items.get("tstring").?.String);
+    try expectEqual(true, result.items.get("tbool").?.Bool);
 
-    try expectEqualStrings("tbool", result.items[1].name);
-    try expectEqual(true, result.items[1].value.Bool);
-
-    try expectEqualStrings("header", result.items[2].name);
-    try expectEqual(@as(usize, 1), result.items[2].value.Table.items.len);
-    try expectEqualStrings("some_string", result.items[2].value.Table.items[0].name);
-    try expectEqualStrings("Thats a string", result.items[2].value.Table.items[0].value.String);
+    var header_table = result.items.get("header").?.Table;
+    try expectEqual(@as(usize, 1), header_table.items.count());
+    try expectEqualStrings("Thats a string", header_table.items.get("some_string").?.String);
 }
 
 test "Simple Parser Error Test" {
@@ -506,7 +497,7 @@ test "Parser Application Test" {
     var result = try parser.parse();
     defer result.deinit();
 
-    try expectEqual(@as(usize, 4), result.items.len);
+    try expectEqual(@as(usize, 4), result.items.count());
 
     // TODO(may): test the rest of the stuff...
 }
