@@ -1,9 +1,9 @@
 const std = @import("std");
-const toml = @import("toml");
 
 const assert = std.debug.assert;
 
 const common = @import("common.zig");
+const toml = @import("toml.zig");
 
 const string = []const u8;
 const Allocator = std.mem.Allocator;
@@ -73,9 +73,7 @@ const Test = struct {
 };
 
 fn tomlToSuite(allocator: Allocator, table: *toml.Table) !Test_Suite {
-    assert(std.mem.eql(u8, table.name, ""));
-
-    var path_val = table.keys.get("path") orelse {
+    var path_val = table.items.get("path") orelse {
         common.ewriteln("Missing key 'path' required", .{});
         return error.Missing_Required_Key;
     };
@@ -86,15 +84,15 @@ fn tomlToSuite(allocator: Allocator, table: *toml.Table) !Test_Suite {
 
     var res = try Test_Suite.init(allocator, path_val.String);
 
-    if (table.keys.get("continue_on_fail")) |cof| {
-        if (cof != .Boolean) {
+    if (table.items.get("continue_on_fail")) |cof| {
+        if (cof != .Bool) {
             common.ewriteln("Expected Boolean for 'continue_on_fail' got {s}", .{@tagName(cof)});
             return error.Wrong_Value_Type;
         }
-        res.continue_on_fail = cof.Boolean;
+        res.continue_on_fail = cof.Bool;
     }
 
-    var iterator = table.keys.valueIterator();
+    var iterator = table.items.valueIterator();
     while (iterator.next()) |val| {
         if (val.* != .Table) continue;
         var raw_test = val.Table;
@@ -104,7 +102,7 @@ fn tomlToSuite(allocator: Allocator, table: *toml.Table) !Test_Suite {
             if (comptime std.mem.eql(u8, field.name, "name")) {
                 t.name = raw_test.name;
             } else {
-                var field_value = raw_test.keys.get(field.name) orelse {
+                var field_value = raw_test.items.get(field.name) orelse {
                     common.ewriteln("Missing required key '" ++ field.name ++ "' on test {s}", .{raw_test.name});
                     return error.Missing_Required_Key;
                 };
@@ -270,14 +268,15 @@ fn mainProc(allocator: Allocator, args: []const []const u8) void {
         common.ewriteln("  Hint: {s}", .{@errorName(err)});
     };
 
-    var table = toml.parseContents(allocator, file_content, null) catch |err| {
+    var parser = toml.Parser.init(allocator, file_content);
+    var table = parser.parse() catch |err| {
         common.ewriteln("Error while parsing tests.toml file.", .{});
         common.ewriteln("  Hint: {s}", .{@errorName(err)});
         return;
     };
     defer table.deinit();
 
-    var suite = tomlToSuite(allocator, table) catch return;
+    var suite = tomlToSuite(allocator, &table) catch return;
     defer suite.deinit();
 
     fixExePath(allocator, &suite) catch |err| {

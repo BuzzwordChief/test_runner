@@ -175,20 +175,22 @@ const Tokenizer = struct {
     }
 };
 
-const Value = union(enum) {
+pub const Value = union(enum) {
     Bool: bool,
     String: []const u8,
     Integer: i64,
     Table: Table,
 };
 
-const Table = struct {
+pub const Table = struct {
     const Item_Type = std.StringHashMap(Value);
 
+    name: []const u8,
     items: Item_Type,
 
-    pub fn init(allocator: std.mem.Allocator) Table {
+    pub fn init(allocator: std.mem.Allocator, name: []const u8) Table {
         return .{
+            .name = name,
             .items = Item_Type.init(allocator),
         };
     }
@@ -205,7 +207,7 @@ const Table = struct {
     }
 };
 
-const Parser = struct {
+pub const Parser = struct {
     allocator: std.mem.Allocator,
     tokenizer: Tokenizer,
 
@@ -217,7 +219,7 @@ const Parser = struct {
     }
 
     pub fn parse(self: *Parser) !Table {
-        var result = Table.init(self.allocator);
+        var result = Table.init(self.allocator, "");
         errdefer result.deinit();
 
         var state: enum {
@@ -258,7 +260,7 @@ const Parser = struct {
                             return error.Expected_Closing_Bracket;
                         }
 
-                        value = Value{ .Table = Table.init(self.allocator) };
+                        value = Value{ .Table = Table.init(self.allocator, name) };
                         try result.items.put(name, value);
                         current_table = &(result.items.getPtr(name) orelse unreachable).Table;
                     } else {

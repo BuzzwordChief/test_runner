@@ -15,9 +15,6 @@ pub fn build(b: *std.build.Builder) void {
     exe.setTarget(target);
     exe.setBuildMode(mode);
 
-    // Add Packages
-    exe.addPackage(.{ .name = "toml", .path = .{ .path = "lib/zig-toml/src/toml.zig" } });
-
     exe.install();
 
     const run_cmd = exe.run();
@@ -29,13 +26,10 @@ pub fn build(b: *std.build.Builder) void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
+    // build test
     const exe_tests = b.addTest("src/main.zig");
     exe_tests.setTarget(target);
     exe_tests.setBuildMode(mode);
-
-    // Add Packages
-    exe_tests.addPackage(.{ .name = "toml", .path = .{ .path = "lib/zig-toml/src/toml.zig" } });
-
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&exe_tests.step);
 }

@@ -9,39 +9,10 @@ output     = "-some -program -arguments"
 output_err = "/Users/bc/source/test_runner/test"
 exit_code  = 69
 
-[Green_Test2]
+[Green_Test1]
 input      = "-some -program -arguments"
-output     = "-some -program -arguments"
-output_err = "/Users/bc/source/test_runner/test"
-exit_code  = 69
-
-[Green_Test3]
-input      = "-some -program -arguments"
-output     = "-some -program -arguments"
-output_err = "/Users/bc/source/test_runner/test"
-exit_code  = 69
-
-[Green_Test4]
-input      = "-some -program -arguments"
-output     = "-some -program -arguments"
-output_err = "/Users/bc/source/test_runner/test"
-exit_code  = 69
-
-[Green_Test5]
-input      = "-some -program -arguments"
-output     = "-some -program -arguments"
-output_err = "/Users/bc/source/test_runner/test"
-exit_code  = 69
-
-[Green_Test6]
-input      = "-some -program -arguments"
-output     = "-some -program -arguments"
-output_err = "/Users/bc/source/test_runner/test"
-exit_code  = 69
-
-[Green_Test7]
-input      = "-some -program -arguments"
-output     = "-some -program -arguments"
+output     = "
+-some -program -arguments"
 output_err = "/Users/bc/source/test_runner/test"
 exit_code  = 69
 
