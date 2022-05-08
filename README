@@ -1,1 +1,9 @@
-This is a README :)
+This is a test runner.
+----------------------
+
+The program runs tests on a given executable, comparing the expected stdout, stderr and exit code with
+the results returned by the executable given specified arguments. 
+
+--- Configuration ---
+test_runner uses TOML files for defining test suites. For convenience "normal strings" can span over multiple lines. 
+So no multi-strings like in the TOML Spec, just normal strings everywhere.
