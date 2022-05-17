@@ -251,8 +251,7 @@ fn setCwd(allocator: Allocator, path: string) !void {
     defer allocator.free(config_path);
 
     var dir_path = std.fs.path.dirname(config_path) orelse &([_]u8{std.fs.path.delimiter});
-    common.ewriteln("{s}", .{dir_path});
-    var dir = try std.fs.openDirAbsolute(dir_path, .{});
+    var dir      = try std.fs.openDirAbsolute(dir_path, .{});
     defer dir.close();
 
     try dir.setAsCwd();

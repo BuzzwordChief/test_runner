@@ -1,7 +1,7 @@
 # This is the general configuration.
 path = "example_program" # Relative to this file
 continue_on_fail    = true
-line_endings_strict = false
+line_endings_strict = false # Set this to true, to fail all the tests
 
 [Green_Test0]
 input      = "-some -program -arguments"
