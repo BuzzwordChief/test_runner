@@ -13,7 +13,7 @@ int main(int argc, char** argv) {
     char cwd_path[4096];
     getcwd(cwd_path, 4095);
     cwd_path[4095] = 0;
-    fprintf(stderr, "%s", cwd_path);
+    fprintf(stderr, "%s\n", cwd_path);
 
     return 69;
 }

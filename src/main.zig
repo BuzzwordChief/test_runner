@@ -35,7 +35,8 @@ const Test_Suite = struct {
     const Tests_List = std.ArrayList(Test);
 
     path: string,
-    continue_on_fail: bool = false,
+    continue_on_fail: bool    = false,
+    line_endings_strict: bool = false,
     tests: Tests_List,
 
     pub fn init(_allocator: std.mem.Allocator, path: string) !Self {
@@ -90,6 +91,13 @@ fn tomlToSuite(allocator: Allocator, table: *toml.Table) !Test_Suite {
             return error.Wrong_Value_Type;
         }
         res.continue_on_fail = cof.Bool;
+    }
+    if (table.items.get("line_endings_strict")) |cof| {
+        if (cof != .Bool) {
+            common.ewriteln("Expected Boolean for 'line_endings_strict' got {s}", .{@tagName(cof)});
+            return error.Wrong_Value_Type;
+        }
+        res.line_endings_strict = cof.Bool;
     }
 
     var iterator = table.items.valueIterator();
@@ -169,7 +177,7 @@ fn runSuite(allocator: Allocator, suite: *Test_Suite) !void {
             printDifference("exit code", t.exit_code, result.term.Exited);
         }
 
-        if (!std.mem.eql(u8, result.stdout, t.output)) {
+        if (!compareStrings(suite.line_endings_strict, result.stdout, t.output)) {
             if (!fail) {
                 common.writeln(BRED ++ "FAIL" ++ RST, .{});
             }
@@ -177,7 +185,7 @@ fn runSuite(allocator: Allocator, suite: *Test_Suite) !void {
             printDifference("output", t.output, result.stdout);
         }
 
-        if (!std.mem.eql(u8, result.stderr, t.output_err)) {
+        if (!compareStrings(suite.line_endings_strict, result.stderr, t.output_err)) {
             if (!fail) {
                 common.writeln(BRED ++ "FAIL" ++ RST, .{});
             }
@@ -190,6 +198,39 @@ fn runSuite(allocator: Allocator, suite: *Test_Suite) !void {
         } else if (!suite.continue_on_fail) {
             break;
         }
+    }
+}
+
+/// Compares the two strings. If strict is enabled it ignores differences in line-endings.
+/// Returns true if equal.
+fn compareStrings(strict: bool, expected: string, actuall: string) bool {
+    if (strict) {
+        return std.mem.eql(u8, expected, actuall);
+    } else {
+
+        // Check ignoring line-endings
+        var i : u64 = 0;
+        while (i < expected.len) : (i += 1) {
+            if (i >= actuall.len) return false;
+
+            if (expected[i] == actuall[i]) {
+                // Ignored
+            } else if (expected[i] == '\r' and actuall[i] == '\n') {
+                if ( (i + 1 < expected.len) and expected[i + 1] == '\n' ) {
+                    i += 1;
+                } else {
+                    return false; // expected \r got \n
+                }
+            } else if (expected[i] == '\n' and actuall[i] == '\r') {
+                if ( (i + 1 < actuall.len) and actuall[i + 1] == '\n' ) {
+                    i += 1;
+                } else {
+                    return false; // expected \n got \r
+                }
+            }
+        }
+
+        return true;
     }
 }
 

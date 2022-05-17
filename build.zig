@@ -12,9 +12,9 @@ pub fn build(b: *std.build.Builder) void {
     const mode = b.standardReleaseOptions();
 
     const exe = b.addExecutable("test_runner", "src/main.zig");
+    exe.linkLibC(); // for fchdir...
     exe.setTarget(target);
     exe.setBuildMode(mode);
-    exe.linkLibC();
     exe.install();
 
     const run_cmd = exe.run();
