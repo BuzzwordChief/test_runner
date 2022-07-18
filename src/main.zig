@@ -177,15 +177,15 @@ fn runSuite(allocator: Allocator, suite: *Test_Suite) !void {
             printDifference("exit code", t.exit_code, result.term.Exited);
         }
 
-        if (!compareStrings(suite.line_endings_strict, result.stdout, t.output)) {
+        if (!CompareStrings(suite.line_endings_strict, result.stdout, t.output)) {
             if (!fail) {
                 common.writeln(BRED ++ "FAIL" ++ RST, .{});
             }
             fail = true;
             printDifference("output", t.output, result.stdout);
-        }
+        } 
 
-        if (!compareStrings(suite.line_endings_strict, result.stderr, t.output_err)) {
+        if (!CompareStrings(suite.line_endings_strict, result.stderr, t.output_err)) {
             if (!fail) {
                 common.writeln(BRED ++ "FAIL" ++ RST, .{});
             }
@@ -203,30 +203,51 @@ fn runSuite(allocator: Allocator, suite: *Test_Suite) !void {
 
 /// Compares the two strings. If strict is enabled it ignores differences in line-endings.
 /// Returns true if equal.
-fn compareStrings(strict: bool, expected: string, actuall: string) bool {
-    if (strict) {
-        return std.mem.eql(u8, expected, actuall);
-    } else {
+fn CompareStrings(strict: bool, str1: string, str2: string) bool 
+{
+    if (strict) 
+    {
+        return std.mem.eql(u8, str1, str2);
+    }
+    else 
+    {
+        if (str1.len == 0 or str2.len == 0) return str1.len == str2.len;
 
         // Check ignoring line-endings
         var i : u64 = 0;
-        while (i < expected.len) : (i += 1) {
-            if (i >= actuall.len) return false;
+        while (i < str1.len) : (i += 1)
+        {
+            if (i >= str2.len) return false;
 
-            if (expected[i] == actuall[i]) {
+            if (str1[i] == str2[i]) 
+            {
                 // Ignored
-            } else if (expected[i] == '\r' and actuall[i] == '\n') {
-                if ( (i + 1 < expected.len) and expected[i + 1] == '\n' ) {
+            }
+            else if (str1[i] == '\r' and str2[i] == '\n') 
+            {
+                if ( (i + 1 < str1.len) and str1[i + 1] == '\n' ) 
+                {
                     i += 1;
-                } else {
-                    return false; // expected \r got \n
+                } 
+                else 
+                {
+                    return false; // str1 \r got \n
                 }
-            } else if (expected[i] == '\n' and actuall[i] == '\r') {
-                if ( (i + 1 < actuall.len) and actuall[i + 1] == '\n' ) {
+            } 
+            else if (str1[i] == '\n' and str2[i] == '\r') 
+            {
+                if ( (i + 1 < str2.len) and str2[i + 1] == '\n' ) 
+                {
                     i += 1;
-                } else {
-                    return false; // expected \n got \r
+                } 
+                else
+                {
+                    return false; // str1 \n got \r
                 }
+            }
+            else
+            {
+                return false;
             }
         }
 

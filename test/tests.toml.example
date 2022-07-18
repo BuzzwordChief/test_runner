@@ -19,7 +19,7 @@ exit_code  = 69
 
 [Failing_Test]
 input      = "ARG2"
-output     = "OUT2"
+output     = "OUT2dwadawijdwai"
 output_err = "OUT_ERR2"
 exit_code  = 222
 
